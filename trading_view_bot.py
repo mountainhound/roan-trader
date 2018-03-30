@@ -50,6 +50,12 @@ class gdax_bot():
 			except:
 				time.sleep(1)
 
+	def orderbook_conn(self):
+		if self.orderbook.stop:
+			self.orderbook.close()
+			self.orderbook = gdax.OrderBook(product_id = [self.product_id])
+			self.init_orderbook()
+
 	def get_product_info(self):
 		ret = self.pc.get_products()
 		min_amount = 0
@@ -313,6 +319,8 @@ class gdax_bot():
 		fiat_balance = 0.00	
 		coin_balance = 0.00
 		try:
+			#Check orderbook connection
+			self.orderbook_conn()
 			price = self.get_price()
 			
 			self.buy_flag = False	#Lets api know that buy occured

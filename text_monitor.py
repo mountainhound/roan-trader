@@ -272,7 +272,7 @@ def stop_check():
 		return False
 
 if __name__ == '__main__':
-	coin_ids = ["LTC","ETH","BTC"]
+	coin_ids = settings.COIN_LIST
 	gdax_bot_dict = {}
 	
 	for coin_id in coin_ids: 
