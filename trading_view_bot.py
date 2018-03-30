@@ -5,8 +5,6 @@ import numpy as np
 import datetime
 import dateutil.parser 
 from dateutil.tz import *
-import math
-from scipy import stats
 from decimal import *
 import threading
 import Queue as queue
