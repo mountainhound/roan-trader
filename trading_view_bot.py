@@ -8,6 +8,7 @@ from dateutil.tz import *
 from decimal import *
 import threading
 import Queue as queue
+import roan_settings as settings
 
 class gdax_bot(): 
 	def __init__ (self,coin_id,product_id,auth_client):
@@ -23,10 +24,11 @@ class gdax_bot():
 		self.min_amount, self.quote_increment, self.min_market_funds = self.get_product_info()
 		self.last_buy_price = None
 
-		self.short_max_profit = 1.03
-		self.long_max_profit = 1.06
-		self.max_loss = .97
-		self.max_slippage = .002
+		self.short_max_profit = settings.SHORT_MAX_PROFIT
+		self.long_max_profit = settings.LONG_MAX_PROFIT
+		self.short_max_loss = settings.SHORT_MAX_LOSS
+		self.long_max_loss = settings.LONG_MAX_LOSS
+		self.max_slippage = settings.MAX_SLIPPAGE
 
 		self.equivalent_fiat = None
 
@@ -52,6 +54,8 @@ class gdax_bot():
 
 	def orderbook_conn(self):
 		if self.orderbook.stop:
+			print self.orderbook.error
+			print "Reset Connection for {}".format(self.coin_id)
 			self.orderbook.close()
 			self.orderbook = gdax.OrderBook(product_id = [self.product_id])
 			self.init_orderbook()
@@ -76,28 +80,35 @@ class gdax_bot():
 
 	def get_orders(self):
 		order_generator = self.auth_client.get_orders()
-		orders = list(order_generator)
+		orders = list(order_generator)[0]
 		return orders
 
-	def stop_limit(self,buy_price,current_price,coin_balance):
-		if buy_price and coin_balance > self.min_amount: 
-			if self.short_flag:
-				if current_price > (buy_price*self.short_max_profit) or current_price < (buy_price*self.max_loss):
-					ret = self.place_sell(current_price,coin_balance)
-					
-					if ret: 
-						self.long_flag = False
-						self.short_flag = False 
-					print ret
+	def stop_limit(self):
+		coin_balance,fiat_balance = self.get_balances()
+		current_price = self.get_bid() + self.quote_increment
 
-			elif self.long_flag:
-				if current_price > (buy_price*self.short_max_profit) or current_price < (buy_price*self.max_loss):
-					ret = self.place_sell(current_price,coin_balance)
+		if self.last_buy_price and coin_balance > self.min_amount: 
+			if self.short_flag and self.short_max_profit is not None and self.short_max_loss is not None:
+
+				if current_price > (self.last_buy_price*self.short_max_profit) or current_price < (self.last_buy_price*self.short_max_loss):
+					"Short Stop Limit Sell Last Buy Price: {} Current Price: {} Coin ID: {}".format(self.last_buy_price,current_price,self.coin_id)
+					self.order_thread = threading.Thread(target=self.place_sell, name='short_sell_thread')
+					self.order_thread.daemon = True
+					self.order_thread.start()
 					
-					if ret: 
-						self.long_flag = False
-						self.short_flag = False 
-					print ret
+					self.long_flag = False
+					self.short_flag = False 
+
+			elif self.long_flag and self.long_max_profit is not None and self.long_max_loss is not None:
+
+				if current_price > (self.last_buy_price*self.long_max_profit) or current_price < (self.last_buy_price*self.long_max_loss):
+					"Long Stop Limit Sell Last Buy Price: {} Current Price: {} Coin ID: {}".format(self.last_buy_price,current_price,self.coin_id)
+					self.order_thread = threading.Thread(target=self.place_sell, name='long_sell_thread')
+					self.order_thread.daemon = True
+					self.order_thread.start()
+
+					self.long_flag = False
+					self.short_flag = False
 
 	def round_fiat(self, money):
 		return Decimal(money).quantize(Decimal('.01'), rounding=ROUND_DOWN)
@@ -108,6 +119,7 @@ class gdax_bot():
 
 	def get_balances(self,pending_flag = True):
 		accounts = self.auth_client.get_accounts()
+
 		for account in accounts: 
 			if account.get('currency') == 'USD':
 				fiat_balance = self.round_fiat(account.get('balance'))
@@ -118,13 +130,14 @@ class gdax_bot():
 			pending_order_sum = Decimal(0.00)
 			pending_sell_sum = Decimal(0.00000000)
 			orders = self.get_orders()
+
 			for order in orders: 
 				if order.get('side') == 'buy':
 					coin_size = Decimal(order.get('size'))
 					price = Decimal(order.get('price'))
 					pending_order_sum += self.round_fiat(coin_size * price)
 				
-				if order.get('side') == 'sell':
+				if order.get('side') == 'sell' and order.get('product_id') == self.product_id:
 					coin_size = Decimal(order.get('size'))
 					pending_sell_sum += coin_size
 
@@ -188,6 +201,7 @@ class gdax_bot():
 			if size >= self.min_amount:
 				order_flag = True
 				buy_price = initial_price
+				self.last_buy_price = buy_price
 				self.pending_order = True
 				print "Starting Buy Thread"
 				while getattr(self.order_thread,"run", True) and self.buy_flag and size > self.min_amount or len(self.open_orders) > 0:
@@ -244,10 +258,12 @@ class gdax_bot():
 	def place_sell(self):
 		coin_balance,fiat_balance = self.get_balances()
 		order_flag = False
+		print "Selling {} Last Buy Price {}".format(self.coin_id,self.last_buy_price)
 
 		try: 
 			auth_ret = self.auth_client.cancel_all(product_id=self.product_id)
 			initial_price = self.get_bid() + self.quote_increment
+			self.last_buy_price = None
 			size = coin_balance
 			if size >= self.min_amount:
 				order_flag = True
@@ -321,6 +337,7 @@ class gdax_bot():
 		try:
 			#Check orderbook connection
 			self.orderbook_conn()
+
 			price = self.get_price()
 			
 			self.buy_flag = False	#Lets api know that buy occured
@@ -349,6 +366,7 @@ class gdax_bot():
 					self.order_thread.run = False
 					#wait for pending order to finish
 					time.sleep(2)
+
 				self.short_flag = False
 				self.sell_flag = True
 				self.order_thread = threading.Thread(target=self.place_sell, name='short_sell_thread')
@@ -356,13 +374,14 @@ class gdax_bot():
 				self.order_thread.start()
 			
 
-			#LONG TERM UPTREND LOGIC DECISIONS
+			#LONG TERM LOGIC DECISIONS
 			if long_buy_flag and not self.short_flag:
 				print "LONG BUY"
 				if self.pending_order:
 					self.order_thread.run = False
 					#wait for pending order to finish
 					time.sleep(2)
+
 				self.long_flag = True
 				self.buy_flag = True
 				self.order_thread = threading.Thread(target=self.buy, name='long_buy_thread')
@@ -370,21 +389,19 @@ class gdax_bot():
 				self.order_thread.start()
 				
 
-
 			if long_sell_flag and not self.short_flag: 
 				print "LONG SELL"
 				if self.pending_order:
 					self.order_thread.run = False
 					#wait for pending order to finish
 					time.sleep(2)
+
 				self.long_flag = False
 				self.sell_flag = True	
 				self.order_thread = threading.Thread(target=self.sell, name='long_sell_thread')
 				self.order_thread.daemon = True
 				self.order_thread.start()
 				
-
-
 			coin_balance,fiat_balance = self.get_balances()
 			self.calc_fiat_balance(price,coin_balance,fiat_balance)
 			print "COIN_ID: {} EQUIV_FIAT: {} COIN_BALANCE: {} FIAT_BALANCE: {}".format(self.coin_id,self.equivalent_fiat,coin_balance,fiat_balance)

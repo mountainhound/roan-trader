@@ -10,11 +10,50 @@ import time
 from decimal import *
 import signal
 import sys
-import settings
+import os
+'''
+import logging
+logging.basicConfig()
+'''
+import roan_settings as settings
+from flask_apscheduler import APScheduler
 
 
 app = Flask(__name__)
 auth_client = gdax.AuthenticatedClient(settings.GDAX_API_KEY, settings.GDAX_PRIVATE_KEY, settings.GDAX_PASSPHRASE)
+
+def maintenance(): 
+	try: 
+		bot_dict = app.config['GDAX_BOT_DICT']
+		for key,bot in bot_dict.items(): 
+			try: 
+				bot.orderbook_conn()
+				bot.stop_limit()
+			except Exception as e: 
+				print e
+			except ValueError as e: 
+				print e
+		print {"message":"Maintenance Check"}
+	
+	except Exception as e: 
+		print e
+	except ValueError as e: 
+		print e
+
+class Config(object):
+	JOBS = [
+			{
+				'id': 'GDAX Bot Maintenance',
+				'func': maintenance,
+				'trigger': 'interval',
+				'seconds': 30,
+				'max_instances': 20
+			}
+	]
+
+	SCHEDULER_API_ENABLED = True
+
+
 
 def sigint_handler(signum, frame):
 	bot_dict = app.config.get('GDAX_BOT_DICT')
@@ -22,6 +61,7 @@ def sigint_handler(signum, frame):
 		for key,bot in bot_dict.items(): 
 			bot.orderbook.close()
 			print "closing orderbook"
+
 	time.sleep(1)
 	sys.exit()
  
@@ -35,6 +75,7 @@ def create_app(gdax_bot_dict):
 	app.config['MESSAGE_API'] = messaging.Client(settings.BANDWIDTH_USER, settings.BANDWIDTH_TOKEN, settings.BANDWIDTH_SECRET)
 	app.config['ROOT_PHONE'] = settings.ROOT_NUMBER
 	app.config['INIT_EQUIV_FIAT'] = equivalent_fiat(app.config['GDAX_BOT_DICT'])
+	app.config.from_object(Config())
 	print "INIT FIAT SUM: {}".format(app.config['INIT_EQUIV_FIAT'])
 	return app
 
@@ -280,5 +321,10 @@ if __name__ == '__main__':
 		gdax_bot_dict[coin_id.lower()] = gdax_bot(coin_id,product_id,auth_client)
 
 	app = create_app(gdax_bot_dict)
+
+
+	scheduler = APScheduler()
+	scheduler.init_app(app)
+	scheduler.start()
 
 	app.run(host='0.0.0.0')
