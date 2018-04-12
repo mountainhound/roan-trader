@@ -30,6 +30,7 @@ def maintenance():
 			try: 
 				bot.orderbook_conn()
 				bot.stop_limit()
+				return 
 			except Exception as e: 
 				print e
 			except ValueError as e: 
@@ -40,7 +41,7 @@ def maintenance():
 		print e
 	except ValueError as e: 
 		print e
-
+	return
 class Config(object):
 	JOBS = [
 			{

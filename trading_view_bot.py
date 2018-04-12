@@ -41,6 +41,8 @@ class gdax_bot():
 		self.order_exp = 10 #sec Time until bot should cancel limit order and create new one
 		self.get_orders()
 
+		print self.get_balances()
+
 	def init_orderbook(self):
 		self.orderbook.start()
 		ready = False
@@ -119,12 +121,16 @@ class gdax_bot():
 
 	def get_balances(self,pending_flag = True):
 		accounts = self.auth_client.get_accounts()
+		price = self.get_price()
 
 		for account in accounts: 
 			if account.get('currency') == 'USD':
 				fiat_balance = self.round_fiat(account.get('balance'))
+				print "fiat: {}".format(fiat_balance)
 			if account.get('currency') == self.coin_id:
 				coin_balance = self.round_coin(account.get('balance'))
+
+		self.equivalent_fiat = self.round_fiat(coin_balance*price)
 		
 		if pending_flag:
 			pending_order_sum = Decimal(0.00)
@@ -143,7 +149,7 @@ class gdax_bot():
 
 			fiat_balance = fiat_balance - pending_order_sum
 			coin_balance = coin_balance - pending_sell_sum
-		
+ 
 		return coin_balance,fiat_balance	
 
 
@@ -151,7 +157,7 @@ class gdax_bot():
 		coin_balance,fiat_balance = self.get_balances()
 		if self.equivalent_fiat is None: 
 			self.run()
-		return self.round_fiat(self.equivalent_fiat), coin_balance
+		return self.equivalent_fiat, coin_balance
 
 	def get_ask(self):
 		try:
@@ -308,17 +314,6 @@ class gdax_bot():
 		print "Exiting Sell Thread"
 		return order_flag
 
-	def calc_fiat_balance(self,price,coin_balance,fiat_balance):
-		fiat_balance = fiat_balance
-		coin_value = self.round_fiat(coin_balance*price)
-		equiv_balance = coin_value
-
-		open_orders = self.auth_client.get_orders()
-		if list(open_orders):
-			return 
-
-		self.equivalent_fiat = equiv_balance
-
 	def get_price(self):
 		try:
 			price = self.pc.get_product_ticker(product_id = self.product_id).get('price')
@@ -403,7 +398,6 @@ class gdax_bot():
 				self.order_thread.start()
 				
 			coin_balance,fiat_balance = self.get_balances()
-			self.calc_fiat_balance(price,coin_balance,fiat_balance)
 			print "COIN_ID: {} EQUIV_FIAT: {} COIN_BALANCE: {} FIAT_BALANCE: {}".format(self.coin_id,self.equivalent_fiat,coin_balance,fiat_balance)
 
 			return self.equivalent_fiat,fiat_balance,coin_balance,price,self.buy_flag,self.sell_flag
