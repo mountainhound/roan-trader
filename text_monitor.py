@@ -46,8 +46,8 @@ class Config(object):
 				'id': 'GDAX Bot Maintenance',
 				'func': maintenance,
 				'trigger': 'interval',
-				'seconds': 30,
-				'max_instances': 20
+				'seconds': 60,
+				'max_instances': 200
 			}
 	]
 
@@ -326,4 +326,5 @@ if __name__ == '__main__':
 	scheduler.init_app(app)
 	scheduler.start()
 
-	app.run(host='0.0.0.0')
+	http_server = WSGIServer(('',5000),app)
+	http_server.serve_forever()
