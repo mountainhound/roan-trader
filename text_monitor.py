@@ -131,7 +131,7 @@ def check_message(message_id):
 					return False
 		return True
 
-	return True
+	return False
 
 @app.route('/sms', methods=['POST'])
 def sms():
