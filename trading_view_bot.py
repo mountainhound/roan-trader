@@ -24,10 +24,10 @@ class gdax_bot():
 		self.min_amount, self.quote_increment, self.min_market_funds = self.get_product_info()
 		self.last_buy_price = None
 
-		self.short_max_profit = settings.SHORT_MAX_PROFIT
-		self.long_max_profit = settings.LONG_MAX_PROFIT
-		self.short_max_loss = settings.SHORT_MAX_LOSS
-		self.long_max_loss = settings.LONG_MAX_LOSS
+		self.short_max_profit = Decimal(settings.SHORT_MAX_PROFIT)
+		self.long_max_profit = Decimal(settings.LONG_MAX_PROFIT)
+		self.short_max_loss = Decimal(settings.SHORT_MAX_LOSS)
+		self.long_max_loss = Decimal(settings.LONG_MAX_LOSS)
 		self.max_slippage = settings.MAX_SLIPPAGE
 
 		self.equivalent_fiat = None
