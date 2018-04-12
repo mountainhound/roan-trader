@@ -126,7 +126,6 @@ class gdax_bot():
 		for account in accounts: 
 			if account.get('currency') == 'USD':
 				fiat_balance = self.round_fiat(account.get('balance'))
-				print "fiat: {}".format(fiat_balance)
 			if account.get('currency') == self.coin_id:
 				coin_balance = self.round_coin(account.get('balance'))
 
