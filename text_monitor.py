@@ -114,20 +114,20 @@ def logger(log_path,log_message):
 		f.write('\n')
 
 def check_message(message_id):
-	message_id = message_id.replace('<','')
+	message_id = message_id.replace('<','').replace('>','')
 	ret =  requests.get(
-		"{}/events".format(settings.MAILGUN_API_URL,
+		"{}/events".format(settings.MAILGUN_API_URL),
 		auth=("api", settings.MAILGUN_API_KEY),
-		params={"message-id": message_id}))
+		params={"message-id": message_id})
 	#Check if return was valid if not then do not place trade
-	print "mailgun status code: {}".format(ret.status_code)
+	print "mailgon status code: {}".format(ret.status_code)
 	if ret.status_code == 200:
+		print "Email received Checking.."
 		data =  ret.json()
-
 		for event in  data.get('items'):
 			if event.get('delivery-status'):
 				if event.get('delivery-status').get('attempt-no') > 1:
-					print event.get('delivery-status')
+					print event.get('delivery-status').get('attempt-no')
 					return False
 		return True
 
@@ -321,7 +321,6 @@ if __name__ == '__main__':
 		gdax_bot_dict[coin_id.lower()] = gdax_bot(coin_id,product_id,auth_client)
 
 	app = create_app(gdax_bot_dict)
-
 
 	scheduler = APScheduler()
 	scheduler.init_app(app)
