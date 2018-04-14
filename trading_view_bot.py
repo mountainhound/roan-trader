@@ -121,13 +121,15 @@ class gdax_bot():
 
 	def get_balances(self,pending_flag = True):
 		accounts = self.auth_client.get_accounts()
-		price = self.get_price()
-
+		
 		for account in accounts: 
 			if account.get('currency') == 'USD':
 				fiat_balance = self.round_fiat(account.get('balance'))
 			if account.get('currency') == self.coin_id:
 				coin_balance = self.round_coin(account.get('balance'))
+
+		time.sleep(.1)  #Slow down for GDAX API Limit
+		price = self.get_ask()
 
 		self.equivalent_fiat = self.round_fiat(coin_balance*price)
 		
@@ -332,7 +334,7 @@ class gdax_bot():
 			#Check orderbook connection
 			self.orderbook_conn()
 
-			price = self.get_price()
+			price = self.get_ask()
 			
 			self.buy_flag = False	#Lets api know that buy occured
 			self.sell_flag = False	#Lets api know that sell occured

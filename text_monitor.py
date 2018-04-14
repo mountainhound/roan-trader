@@ -12,36 +12,39 @@ from decimal import *
 import signal
 import sys
 import os
-'''
+
 import logging
 logging.basicConfig()
-'''
+
 import roan_settings as settings
 from flask_apscheduler import APScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
 
 
 app = Flask(__name__)
 auth_client = gdax.AuthenticatedClient(settings.GDAX_API_KEY, settings.GDAX_PRIVATE_KEY, settings.GDAX_PASSPHRASE)
 
 def maintenance(): 
-	try: 
-		bot_dict = app.config['GDAX_BOT_DICT']
-		for key,bot in bot_dict.items(): 
-			try: 
-				bot.orderbook_conn()
-				bot.stop_limit()
-				return 
-			except Exception as e: 
-				print e
-			except ValueError as e: 
-				print e
-		print {"message":"Maintenance Check"}
-	
-	except Exception as e: 
-		print e
-	except ValueError as e: 
-		print e
-	return
+	with app.app_context():
+		try: 
+			bot_dict = app.config['GDAX_BOT_DICT']
+			for key,bot in bot_dict.items(): 
+				try: 
+					bot.orderbook_conn()
+					bot.stop_limit()
+				except Exception as e: 
+					print e
+				except ValueError as e: 
+					print e
+			print {"message":"Maintenance Check"}
+			return
+		
+		except Exception as e: 
+			print e
+		except ValueError as e: 
+			print e
+		return
+
 class Config(object):
 	JOBS = [
 			{
@@ -49,12 +52,11 @@ class Config(object):
 				'func': maintenance,
 				'trigger': 'interval',
 				'seconds': 60,
-				'max_instances': 200
+				'max_instances': 1
 			}
 	]
 
 	SCHEDULER_API_ENABLED = True
-
 
 
 def sigint_handler(signum, frame):
@@ -323,10 +325,17 @@ if __name__ == '__main__':
 		gdax_bot_dict[coin_id.lower()] = gdax_bot(coin_id,product_id,auth_client)
 
 	app = create_app(gdax_bot_dict)
-
+	
 	scheduler = APScheduler()
 	scheduler.init_app(app)
 	scheduler.start()
-
-	http_server = WSGIServer(('',5000),app)
+	
+	'''
+	sched = BackgroundScheduler(daemon=True)
+	sched.add_job(maintenance,'interval',seconds=10)
+	sched.start()
+	'''
+	#app.run(port = 5001,threaded = True)
+	http_server = WSGIServer(('',5001),app)
 	http_server.serve_forever()
+
