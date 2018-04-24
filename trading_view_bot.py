@@ -179,7 +179,7 @@ class gdax_bot():
 			self.orderbook.close()
 			time.sleep(1)
 			self.init_orderbook()
-			sell_price = self.orderbook.get_ask()
+			sell_price = self.orderbook.get_bid()
 			return Decimal(sell_price)
 
 	def buy(self,price = None,size = None,buy_type = 'limit',partial = 1.0):
@@ -190,7 +190,8 @@ class gdax_bot():
 			amount = self.round_coin(size * Decimal(partial))
 			if amount > self.min_amount:
 				size = amount
-			ret = self.auth_client.buy(price= str(price), size=str(size), product_id=self.product_id, post_only = True, order_type = "limit")
+			#ret = self.auth_client.buy(price= str(price), size=str(size), product_id=self.product_id, post_only = True, order_type = "limit")
+			ret = self.auth_client.buy(price= str(price), size=str(size), product_id=self.product_id, post_only = False, order_type = "limit")
 
 		else:
 			ret = self.auth_client.buy(funds= str(self.get_balances()[1]), product_id=self.product_id, order_type = "market")
@@ -230,7 +231,8 @@ class gdax_bot():
 					for order in self.open_orders:
 						order_time = dateutil.parser.parse(order.get('created_at'))
 						dt = datetime.datetime.utcnow().replace(tzinfo = tzutc()) - order_time
-						if dt.total_seconds() > 60: 
+						price = Decimal(order.get('price'))
+						if dt.total_seconds() > 600 or price != buy_price: 
 							self.auth_client.cancel_order(order.get('id'))
 
 					time.sleep(2)
