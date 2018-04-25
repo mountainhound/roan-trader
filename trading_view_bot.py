@@ -352,10 +352,10 @@ class gdax_bot():
 					self.pending_order = False
 					time.sleep(2)
 
-				self.buy_flag = True
 				self.short_flag = True
 
 				if not self.pending_order:
+					self.buy_flag = True
 					self.order_thread = threading.Thread(target=self.place_buy, name='short_buy_thread')
 					self.order_thread.daemon = True
 					self.order_thread.start()
@@ -370,9 +370,9 @@ class gdax_bot():
 					time.sleep(2)
 
 				self.short_flag = False
-				self.sell_flag = True
 
 				if not self.pending_order:
+					self.sell_flag = True
 					self.order_thread = threading.Thread(target=self.place_sell, name='short_sell_thread')
 					self.order_thread.daemon = True
 					self.order_thread.start()
