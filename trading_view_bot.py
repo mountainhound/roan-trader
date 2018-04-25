@@ -212,10 +212,10 @@ class gdax_bot():
 				self.last_buy_price = buy_price
 				self.pending_order = True
 				print "Starting Buy Thread"
-				while getattr(self.order_thread,"run", True) and self.buy_flag and size > self.min_amount or len(self.open_orders) > 0:
+				while getattr(self.order_thread,"run", True) and self.short_flag and size > self.min_amount or len(self.open_orders) > 0:
 					
 					#Check for max slippage and if so do a market buy
-					if (1 - buy_price/initial_price) >= self.max_slippage:
+					if (buy_price/initial_price - 1) >= self.max_slippage:
 						self.auth_client.cancel_all(product_id=self.product_id)
 						self.buy(buy_type = 'market')
 						self.pending_order = False
@@ -235,7 +235,7 @@ class gdax_bot():
 						if dt.total_seconds() > 600 or price != buy_price: 
 							self.auth_client.cancel_order(order.get('id'))
 
-					time.sleep(2)
+					time.sleep(1)
 
 					buy_price = self.get_ask() - self.quote_increment
 					coin_balance,fiat_balance = self.get_balances()
@@ -258,7 +258,7 @@ class gdax_bot():
 			amount = self.round_coin(size * Decimal(partial))
 			if amount > self.min_amount:
 				size = amount
-			ret = self.auth_client.sell(price= str(price), size=str(size), product_id=self.product_id, post_only = True, order_type = "limit")
+			ret = self.auth_client.sell(price= str(price), size=str(size), product_id=self.product_id, post_only = False, order_type = "limit")
 
 		elif sell_type == 'market':
 			ret = self.auth_client.sell(size= size, product_id=self.product_id, order_type = "market")
@@ -279,7 +279,7 @@ class gdax_bot():
 				sell_price = initial_price
 				self.pending_order = True
 				print "Starting Sell Thread"
-				while getattr(self.order_thread,"run", True) and self.sell_flag and size > self.min_amount or len(self.open_orders) > 0:
+				while getattr(self.order_thread,"run", True) and not self.short_flag and size > self.min_amount or len(self.open_orders) > 0:
 					
 					#Check for max slippage and if so do a market buy
 					if (1 - sell_price/initial_price) >= self.max_slippage:
@@ -298,10 +298,11 @@ class gdax_bot():
 					for order in self.open_orders:
 						order_time = dateutil.parser.parse(order.get('created_at'))
 						dt = datetime.datetime.utcnow().replace(tzinfo = tzutc()) - order_time
-						if dt.total_seconds() > 60: 
+						price = Decimal(order.get('price'))
+						if dt.total_seconds() > 600 or price != sell_price: 
 							self.auth_client.cancel_order(order.get('id'))
 
-					time.sleep(2)
+					time.sleep(1)
 
 					sell_price = self.get_bid() + self.quote_increment
 					coin_balance,fiat_balance = self.get_balances()
@@ -346,30 +347,35 @@ class gdax_bot():
 			#SHORT TERM LOGIC DECISIONS
 			if short_buy_flag and not self.long_flag:
 				print "SHORT BUY"
-				if self.pending_order:
+				if self.pending_order and not self.short_flag:
 					self.order_thread.run = False
+					self.pending_order = False
 					time.sleep(2)
 
 				self.buy_flag = True
 				self.short_flag = True
-				self.order_thread = threading.Thread(target=self.place_buy, name='short_buy_thread')
-				self.order_thread.daemon = True
-				self.order_thread.start()
-				print "after thread running"
+
+				if not self.pending_order:
+					self.order_thread = threading.Thread(target=self.place_buy, name='short_buy_thread')
+					self.order_thread.daemon = True
+					self.order_thread.start()
 
 
 			if short_sell_flag and not self.long_flag:
 				print "SHORT SELL"
-				if self.pending_order:
+				if self.pending_order and self.short_flag:
 					self.order_thread.run = False
+					self.pending_order = False
 					#wait for pending order to finish
 					time.sleep(2)
 
 				self.short_flag = False
 				self.sell_flag = True
-				self.order_thread = threading.Thread(target=self.place_sell, name='short_sell_thread')
-				self.order_thread.daemon = True
-				self.order_thread.start()
+
+				if not self.pending_order:
+					self.order_thread = threading.Thread(target=self.place_sell, name='short_sell_thread')
+					self.order_thread.daemon = True
+					self.order_thread.start()
 			
 
 			#LONG TERM LOGIC DECISIONS
